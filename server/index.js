@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser'
 import { readSession } from './auth.js'
 import { api } from './api.js'
 import { migrate } from './migrate.js'
+import { ensureAdminUserAtBoot } from './admin.js'
 import { pool } from './db.js'
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -108,7 +109,12 @@ app.use((err, _req, res, _next) => {
 
 const port = Number(process.env.PORT) || 3000
 
+// The login is settled at boot rather than by a separate manual step, so a
+// deploy can never come up with a schema it understands and no one able to
+// sign in. It reports rather than throws: a database that cannot be written
+// to should still be readable.
 migrate()
+  .then(() => ensureAdminUserAtBoot())
   .then(() => {
     app.listen(port, '0.0.0.0', () => {
       console.log(`[teeta] listening on ${port}`)
