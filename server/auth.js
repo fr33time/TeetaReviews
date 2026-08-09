@@ -1,39 +1,21 @@
 import crypto from 'node:crypto'
-import { promisify } from 'node:util'
 import { query } from './db.js'
+import { normalizeEmail } from './credentials.js'
 
-const scrypt = promisify(crypto.scrypt)
+// Hashing lives in credentials.js so it can be tested without a database.
+// Re-exported here because this is where the rest of the server looks for it.
+export {
+  DUMMY_HASH,
+  MIN_PASSWORD_LENGTH,
+  describePasswordProblem,
+  hashPassword,
+  normalizeConfiguredPassword,
+  normalizeEmail,
+  verifyPassword,
+} from './credentials.js'
 
-// scrypt rather than bcrypt or argon2: it is a memory-hard KDF of the same
-// class, it ships inside Node, and it needs no native compilation — which
-// keeps the Railway image build from depending on a toolchain that can break
-// on a base-image bump. N=2^16 costs roughly 100ms per hash here, which is the
-// right order for a login nobody brute-forces at volume.
-// maxmem must clear 128 * N * r (64 MB here) or Node refuses the parameters;
-// it is an execution ceiling, not part of the stored hash.
-const SCRYPT = { N: 65536, r: 8, p: 1, keylen: 64, maxmem: 160 * 1024 * 1024 }
 const COOKIE = 'teeta_session'
 const SESSION_DAYS = 30
-
-export async function hashPassword(password) {
-  const salt = crypto.randomBytes(16)
-  const key = await scrypt(password, salt, SCRYPT.keylen, SCRYPT)
-  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString('base64')}$${key.toString('base64')}`
-}
-
-export async function verifyPassword(password, stored) {
-  const parts = String(stored || '').split('$')
-  if (parts.length !== 6 || parts[0] !== 'scrypt') return false
-  const [, N, r, p, salt, expected] = parts
-  const expectedBuf = Buffer.from(expected, 'base64')
-  const actual = await scrypt(password, Buffer.from(salt, 'base64'), expectedBuf.length, {
-    N: Number(N),
-    r: Number(r),
-    p: Number(p),
-    maxmem: SCRYPT.maxmem,
-  })
-  return crypto.timingSafeEqual(actual, expectedBuf)
-}
 
 function secret() {
   const value = process.env.SESSION_SECRET
@@ -96,10 +78,18 @@ export function requireAuth(req, res, next) {
   next()
 }
 
+// Matched against the normalized address rather than lower(email) = lower($1),
+// so the unique index added in 002 can serve the lookup and so the comparison
+// is identical to the one the write path uses.
 export async function findUserByEmail(email) {
   const { rows } = await query(
-    'SELECT id, email, password_hash FROM users WHERE lower(email) = lower($1)',
-    [email]
+    'SELECT id, email, password_hash FROM users WHERE lower(email) = $1',
+    [normalizeEmail(email)]
   )
   return rows[0] || null
+}
+
+export async function countUsers() {
+  const { rows } = await query('SELECT count(*)::int AS n FROM users')
+  return rows[0].n
 }

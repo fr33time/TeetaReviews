@@ -15,6 +15,7 @@
     "start": "node server/index.js",
     "migrate": "node server/migrate.js",
     "seed": "node server/seed.js",
+    "set-password": "node server/set-password.js",
     "test": "node --test \"server/**/*.test.js\"",
     "lint": "eslint ."
   },

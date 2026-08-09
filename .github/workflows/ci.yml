@@ -1,11 +1,15 @@
 name: CI
 
-# Every pull request into main must pass this before it can merge, and main
-# itself is re-checked after merge. Branch protection is what makes it a gate
-# rather than a suggestion — see README, "Protect main".
+# Every pull request must pass this before it can merge, and main itself is
+# re-checked after merge. Branch protection is what makes it a gate rather than
+# a suggestion — see README, "Protect main".
+#
+# Deliberately not filtered to pull requests into main. A branch filter here
+# means a pull request aimed at another branch — one change stacked on top of
+# another that has not landed yet — runs no checks at all, and an unchecked
+# pull request looks exactly like a passing one from the conversation view.
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 

@@ -3,6 +3,7 @@ import express from 'express'
 import rateLimit from 'express-rate-limit'
 import { query } from './db.js'
 import {
+  DUMMY_HASH,
   endSession,
   findUserByEmail,
   requireAuth,
@@ -18,9 +19,13 @@ const REVIEW_COLUMNS = `
   cover_url, display_date, published, created_at, updated_at
 `
 
+// Only failures count against the budget, so signing in and out on the iPad
+// never spends it. Five was tight enough that a couple of typos looked like a
+// password that had stopped working.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: 10,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many attempts. Try again in a few minutes.' },
@@ -51,7 +56,7 @@ api.post('/login', loginLimiter, async (req, res, next) => {
     const user = await findUserByEmail(email)
     // Verify against a dummy hash when the user is missing so a wrong email
     // and a wrong password take the same time to answer.
-    const stored = user?.password_hash || 'scrypt$65536$8$1$AAAA$AAAA'
+    const stored = user?.password_hash || DUMMY_HASH
     const ok = await verifyPassword(password, stored)
 
     if (!user || !ok) return res.status(401).json({ error: 'That is not it. Try again.' })
