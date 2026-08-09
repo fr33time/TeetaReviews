@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#f3f2f2"/>
+  <circle cx="32" cy="32" r="30.2" fill="none" stroke="#b68235" stroke-width=".7" opacity=".8"/>
+  <circle cx="32" cy="32" r="28.2" fill="none" stroke="#b68235" stroke-width="3.4" stroke-dasharray="1 4.35" opacity=".75"/>
+  <circle cx="32" cy="32" r="25.6" fill="none" stroke="#b68235" stroke-width="1.3"/>
+  <circle cx="32" cy="32" r="23.2" fill="none" stroke="#b68235" stroke-width=".55" opacity=".55"/>
+  <text x="32" y="41" text-anchor="middle" font-family="Georgia, serif" font-size="28" fill="#201f1d">T</text>
+</svg>
