@@ -41,6 +41,14 @@ needs no image toolchain and no native dependency. The server still sniffs the
 magic bytes and enforces its own size ceiling — the client-side step is a
 courtesy, not the check.
 
+**Deleting a review is permanent, and it takes its cover with it.** There is no
+trash to empty later. The confirmation lives in the shelf row itself rather than
+in a browser dialog, so a mis-tap on the iPad costs a glance instead of a
+review — and there is no pop-up to dismiss. Because a cover is uploaded for one
+review and nothing else links to it, the image row is deleted alongside, unless
+another review still points at the same URL. Otherwise the bulkiest rows in the
+database would accumulate with nothing referencing them.
+
 **Passwords use scrypt from Node's standard library** rather than bcrypt or
 argon2. Same class of memory-hard KDF, but no native compilation, so the
 production image cannot fail to build over a toolchain change.
@@ -220,7 +228,8 @@ cannot.
 
 - [ ] Teeta signs in on her iPad, writes a review with a cover, publishes it, and it appears on the homepage
 - [ ] A visitor on another device sees it, searches for it, filters to films, sorts by score
-- [ ] Signing out hides her desk
+- [ ] Signing out hides her desk, and the shelf offers no delete to a visitor
+- [ ] She deletes a review from the shelf, the row goes, and it stays gone after a reload
 - [ ] The data survives a redeploy
 - [ ] No password or key appears in the page source
 - [ ] A pull request that breaks a test cannot be merged

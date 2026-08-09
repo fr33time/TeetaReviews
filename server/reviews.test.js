@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { paragraphs, slugify, validateReview } from './reviews.js'
+import { coverIdFromUrl, paragraphs, slugify, validateReview } from './reviews.js'
 
 test('slugify builds the permanent link from title and year', () => {
   assert.equal(slugify('The Odyssey', 'August 2026'), 'odyssey-2026')
@@ -35,6 +35,24 @@ test('a partial update does not demand the required fields', () => {
   const { values, errors } = validateReview({ published: false }, { partial: true })
   assert.deepEqual(errors, {})
   assert.equal(values.published, false)
+})
+
+test('deleting a review finds the uploaded cover it should take with it', () => {
+  const id = 'a'.repeat(24)
+  assert.equal(coverIdFromUrl(`/api/covers/${id}`), id)
+})
+
+test('an outside cover URL is never mistaken for one of ours to delete', () => {
+  assert.equal(coverIdFromUrl(''), null)
+  assert.equal(coverIdFromUrl(null), null)
+  assert.equal(coverIdFromUrl(undefined), null)
+  assert.equal(coverIdFromUrl('https://example.com/cover.jpg'), null)
+  // A full URL that merely ends in our path shape is not a local upload.
+  assert.equal(coverIdFromUrl(`https://evil.test/api/covers/${'b'.repeat(24)}`), null)
+  // Neither is a malformed or traversing id.
+  assert.equal(coverIdFromUrl('/api/covers/'), null)
+  assert.equal(coverIdFromUrl('/api/covers/not-hex-at-all-nope-nope'), null)
+  assert.equal(coverIdFromUrl('/api/covers/../../etc/passwd'), null)
 })
 
 test('paragraphs split on blank lines', () => {

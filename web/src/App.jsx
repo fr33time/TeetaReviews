@@ -110,6 +110,18 @@ export default function App() {
     [reviews, current]
   )
 
+  const deleteReview = useCallback(
+    async (rid) => {
+      await api.deleteReview(rid)
+      // Drop it locally the moment the server agrees, so the shelf is correct
+      // even if the resync behind it does not land. A failed reload is not a
+      // failed deletion and must not be reported as one.
+      setReviews((list) => list.filter((r) => r.id !== rid))
+      await load().catch(() => {})
+    },
+    [load]
+  )
+
   async function signOut() {
     await api.logout().catch(() => {})
     setSignedIn(false)
@@ -139,6 +151,8 @@ export default function App() {
             sort={sort}
             setSort={setSort}
             open={(rid) => go('review', rid)}
+            signedIn={signedIn}
+            onDelete={deleteReview}
           />
         )
       case 'about':
