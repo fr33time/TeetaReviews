@@ -1,0 +1,74 @@
+name: CI
+
+# Every pull request into main must pass this before it can merge, and main
+# itself is re-checked after merge. Branch protection is what makes it a gate
+# rather than a suggestion — see README, "Protect main".
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    name: lint, test, build
+    runs-on: ubuntu-latest
+
+    # A throwaway Postgres so the migrations are proven to apply cleanly on an
+    # empty database — the same thing that happens on a Railway release.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: teeta
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: teeta_ci
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgres://teeta:ci@localhost:5432/teeta_ci
+      SESSION_SECRET: ci-secret-not-used-anywhere-real-0123456789
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Migrations apply to an empty database
+        run: npm run migrate
+
+      - name: Build
+        run: npm run build
+
+      - name: Server boots and answers its health check
+        run: |
+          node server/index.js &
+          PID=$!
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:3000/healthz > /dev/null; then
+              echo "healthy"
+              kill $PID
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server never became healthy"
+          kill $PID 2>/dev/null || true
+          exit 1
