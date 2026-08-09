@@ -490,6 +490,55 @@ textarea.input {
   border-left: 3px solid var(--color-accent);
 }
 
+/* ── the letterbox ───────────────────────────────────────────────────── */
+
+.letterbox {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin: 22px 0 0;
+  padding: 14px 18px;
+  background: rgba(182, 130, 53, 0.07);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-hand);
+  font-size: 23px;
+  line-height: 1.3;
+  color: var(--color-accent-700);
+  animation: inkin 0.55s ease both;
+}
+.letterbox:hover {
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.letterbox-mark {
+  flex: none;
+  display: inline-flex;
+  color: var(--color-accent);
+}
+.letterbox-go {
+  margin-left: auto;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--color-accent-700);
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .letterbox {
+    font-size: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .letterbox-go {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
 /* ── footer ──────────────────────────────────────────────────────────── */
 
 .footer {

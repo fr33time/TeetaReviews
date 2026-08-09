@@ -12,27 +12,25 @@ export default function Notes({ onCountChange }) {
     let live = true
     api
       .listMessages()
-      .then((data) => {
-        if (!live) return
-        setMessages(data.messages)
-        onCountChange?.(data.unread)
-      })
+      .then((data) => live && setMessages(data.messages))
       .catch((err) => live && setError(err.message))
       .finally(() => live && setLoading(false))
     return () => {
       live = false
     }
-  }, [onCountChange])
+  }, [])
+
+  // Derive the badge from what is on screen rather than reporting it from
+  // inside a state updater, which StrictMode may run twice.
+  useEffect(() => {
+    onCountChange?.(messages.filter((m) => !m.read).length)
+  }, [messages, onCountChange])
 
   async function toggle(note) {
     const read = !note.read
     setMessages((all) => all.map((m) => (m.id === note.id ? { ...m, read } : m)))
     try {
       await api.markMessage(note.id, read)
-      setMessages((all) => {
-        onCountChange?.(all.filter((m) => !m.read).length)
-        return all
-      })
     } catch {
       setMessages((all) => all.map((m) => (m.id === note.id ? { ...m, read: !read } : m)))
     }

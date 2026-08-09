@@ -66,12 +66,23 @@ export default function App() {
     const [me, list] = await Promise.all([api.me(), api.listReviews()])
     setSignedIn(me.signedIn)
     setReviews(list.reviews)
+
+    // The unread count has to be part of every load, not just the first one —
+    // she signs in mid-session, and that is exactly when the letterbox matters.
+    if (!me.signedIn) {
+      setUnread(0)
+    } else {
+      try {
+        setUnread((await api.listMessages()).unread)
+      } catch {
+        // A letterbox that cannot be counted is not worth failing a page over.
+      }
+    }
     return me.signedIn
   }, [])
 
   useEffect(() => {
     load()
-      .then((isIn) => isIn && api.listMessages().then((d) => setUnread(d.unread)).catch(() => {}))
       .catch(() => {})
       .finally(() => setReady(true))
   }, [load])
@@ -186,10 +197,32 @@ export default function App() {
     }
   }
 
+  // The letterbox. Notes arrive on her desk rather than by email, so signing in
+  // has to be the moment she finds out one is waiting — a count tucked in the
+  // footer is not something anyone looks at.
+  const letterbox =
+    signedIn && unread > 0 && route !== 'notes' ? (
+      <button type="button" className="letterbox" onClick={() => go('notes')}>
+        <span className="letterbox-mark" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.1">
+            <rect x="2.5" y="5" width="19" height="14" rx="1.5" />
+            <path d="M2.5 6.5 12 13.5 21.5 6.5" />
+          </svg>
+        </span>
+        <span>
+          {unread === 1 ? 'A note is waiting for you' : `${unread} notes are waiting for you`}
+        </span>
+        <span className="letterbox-go" aria-hidden="true">
+          open the letterbox →
+        </span>
+      </button>
+    ) : null
+
   return (
     <div className="page">
       <div className="wrap">
         <Header route={route} go={go} />
+        {letterbox}
         {renderScreen()}
         <Footer signedIn={signedIn} unread={unread} go={go} onSignOut={signOut} />
       </div>
