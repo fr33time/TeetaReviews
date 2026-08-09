@@ -3,11 +3,14 @@
 // are thrown as ApiError so a form can pin them beside the right input.
 
 export class ApiError extends Error {
-  constructor(message, { status, errors } = {}) {
+  constructor(message, { status, errors, reason } = {}) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.errors = errors || null
+    // For a 401: 'absent' | 'expired' | 'invalid'. Lets the desk offer a way
+    // back in rather than a dead end.
+    this.reason = reason || null
   }
 }
 
@@ -36,6 +39,7 @@ async function request(path, { method = 'GET', body, raw, headers = {} } = {}) {
     throw new ApiError(data?.error || 'That did not work.', {
       status: res.status,
       errors: data?.errors,
+      reason: data?.reason,
     })
   }
   return data

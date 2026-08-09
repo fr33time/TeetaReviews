@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, shrinkImage } from '../api.js'
+import ReAuth from '../components/ReAuth.jsx'
 
 const KINDS = ['Book', 'Film', 'Television', 'Other']
 
@@ -15,18 +16,70 @@ const blank = () => ({
   cover_url: '',
 })
 
+/**
+ * An unsaved review lives only in this tab, so it is also kept in the browser
+ * as it is typed. A lapsed session, a closed lid or a stray reload used to
+ * take the whole evening's writing with it.
+ */
+const keyFor = (editing) => (editing ? `teeta.draft.${editing.id}` : 'teeta.draft.new')
+
+function readStored(key) {
+  try {
+    const raw = window.localStorage.getItem(key)
+    const stored = raw ? JSON.parse(raw) : null
+    // Only worth restoring if there is something in it.
+    if (stored && (stored.title?.trim() || stored.body?.trim())) return stored
+    return null
+  } catch {
+    // Private browsing, or a storage quota. Never a reason to fail the page.
+    return null
+  }
+}
+
+function writeStored(key, draft) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(draft))
+  } catch {
+    /* nothing to do — the draft simply is not backed up */
+  }
+}
+
+function clearStored(key) {
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    /* as above */
+  }
+}
+
+function startingDraft(editing) {
+  const base = editing ? { ...blank(), ...editing } : blank()
+  const stored = readStored(keyFor(editing))
+  return stored ? { ...base, ...stored } : base
+}
+
 export default function Desk({ editing, onSaved, onCancel, onDeleted }) {
-  const [draft, setDraft] = useState(() => (editing ? { ...blank(), ...editing } : blank()))
+  const [draft, setDraft] = useState(() => startingDraft(editing))
   const [errors, setErrors] = useState({})
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
+  // Set when a save came back 401. Holds which button was pressed, so the same
+  // save can be retried once she is back in.
+  const [reauth, setReauth] = useState(null)
+
+  const storageKey = keyFor(editing)
 
   useEffect(() => {
-    setDraft(editing ? { ...blank(), ...editing } : blank())
+    setDraft(startingDraft(editing))
     setErrors({})
     setNote('')
+    setReauth(null)
   }, [editing])
+
+  useEffect(() => {
+    writeStored(storageKey, draft)
+  }, [storageKey, draft])
 
   const set = (key) => (e) => {
     const value = key === 'score' ? Number(e.target.value) : e.target.value
@@ -51,23 +104,45 @@ export default function Desk({ editing, onSaved, onCancel, onDeleted }) {
     }
   }
 
-  async function save(published) {
+  const save = useCallback(
+    async (published) => {
+      setBusy(true)
+      setErrors({})
+      setNote('')
+      try {
+        const payload = { ...draft, published }
+        const saved = editing
+          ? await api.updateReview(editing.id, payload)
+          : await api.createReview(payload)
+        // Only now is it somewhere other than this browser.
+        clearStored(storageKey)
+        setReauth(null)
+        onSaved(saved.review, published)
+      } catch (err) {
+        // The session lapsed mid-write. Offer the way back in right here
+        // rather than sending her to the sign-in screen, which would take the
+        // review with it.
+        if (err.status === 401) {
+          setReauth({ published, message: err.message })
+          return
+        }
+        setErrors(err.errors || {})
+        if (!err.errors) setNote(err.message)
+      } finally {
+        setBusy(false)
+      }
+    },
+    [draft, editing, onSaved, storageKey]
+  )
+
+  function attemptSave(published) {
     if (busy) return
-    setBusy(true)
-    setErrors({})
-    setNote('')
-    try {
-      const payload = { ...draft, published }
-      const saved = editing
-        ? await api.updateReview(editing.id, payload)
-        : await api.createReview(payload)
-      onSaved(saved.review, published)
-    } catch (err) {
-      setErrors(err.errors || {})
-      if (!err.errors) setNote(err.message)
-    } finally {
-      setBusy(false)
-    }
+    save(published)
+  }
+
+  function abandon() {
+    clearStored(storageKey)
+    onCancel()
   }
 
   async function remove() {
@@ -76,6 +151,7 @@ export default function Desk({ editing, onSaved, onCancel, onDeleted }) {
     setBusy(true)
     try {
       await api.deleteReview(editing.id)
+      clearStored(storageKey)
       onDeleted()
     } catch (err) {
       setNote(err.message)
@@ -234,14 +310,22 @@ export default function Desk({ editing, onSaved, onCancel, onDeleted }) {
           </div>
         </label>
 
+        {reauth && (
+          <ReAuth
+            message={reauth.message}
+            onSignedIn={() => save(reauth.published)}
+            onCancel={() => setReauth(null)}
+          />
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 6, flexWrap: 'wrap' }}>
-          <button type="button" className="btn" onClick={() => save(true)} disabled={busy}>
+          <button type="button" className="btn" onClick={() => attemptSave(true)} disabled={busy}>
             {editing ? 'Save it' : 'Seal it and publish'}
           </button>
-          <button type="button" className="btn-quiet" onClick={() => save(false)} disabled={busy}>
+          <button type="button" className="btn-quiet" onClick={() => attemptSave(false)} disabled={busy}>
             Keep it to myself for now
           </button>
-          <button type="button" className="btn-quiet" onClick={onCancel}>
+          <button type="button" className="btn-quiet" onClick={abandon}>
             Never mind
           </button>
           {editing && (

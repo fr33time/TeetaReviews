@@ -32,21 +32,38 @@ function sign(payload) {
   return `${body}.${mac}`
 }
 
+// Why a request arrived without a usable session. Worth distinguishing: the
+// three cases need three different things from her, and "Not signed in" on its
+// own sent us looking in the wrong place once already.
+export const SESSION_ABSENT = 'absent'
+export const SESSION_INVALID = 'invalid'
+export const SESSION_EXPIRED = 'expired'
+
+/** @returns {{payload: object|null, reason: string|null}} */
 function unsign(token) {
-  const [body, mac] = String(token || '').split('.')
-  if (!body || !mac) return null
+  const raw = String(token || '')
+  if (!raw) return { payload: null, reason: SESSION_ABSENT }
+
+  const [body, mac] = raw.split('.')
+  if (!body || !mac) return { payload: null, reason: SESSION_INVALID }
 
   const expected = crypto.createHmac('sha256', secret()).update(body).digest('base64url')
   const a = Buffer.from(mac)
   const b = Buffer.from(expected)
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
+  // A signature that does not check out means the cookie was tampered with or,
+  // far more likely, SESSION_SECRET changed underneath a cookie that was fine.
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return { payload: null, reason: SESSION_INVALID }
+  }
 
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
-    if (!payload.exp || payload.exp < Date.now()) return null
-    return payload
+    if (!payload.exp || payload.exp < Date.now()) {
+      return { payload: null, reason: SESSION_EXPIRED }
+    }
+    return { payload, reason: null }
   } catch {
-    return null
+    return { payload: null, reason: SESSION_INVALID }
   }
 }
 
@@ -67,14 +84,26 @@ export function endSession(res) {
 
 /** Populates req.user when a valid session cookie is present. Never rejects. */
 export function readSession(req, _res, next) {
-  const payload = unsign(req.cookies?.[COOKIE])
+  const { payload, reason } = unsign(req.cookies?.[COOKIE])
   req.user = payload ? { id: payload.uid } : null
+  req.sessionEnded = payload ? null : reason
   next()
+}
+
+// She reads these standing at the desk with something written and unsaved, so
+// each one says what happened and that her work is not going anywhere.
+const SESSION_MESSAGES = {
+  [SESSION_ABSENT]: 'You are not signed in on this device. Sign in and this will go straight through.',
+  [SESSION_EXPIRED]: 'Your sign-in has expired. Sign in again — what you wrote is still here.',
+  [SESSION_INVALID]: 'Your sign-in is no longer valid, usually because the site was updated. Sign in again — what you wrote is still here.',
 }
 
 /** Gate for every write endpoint. */
 export function requireAuth(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'Not signed in.' })
+  if (!req.user) {
+    const reason = req.sessionEnded || SESSION_ABSENT
+    return res.status(401).json({ error: SESSION_MESSAGES[reason], reason })
+  }
   next()
 }
 
