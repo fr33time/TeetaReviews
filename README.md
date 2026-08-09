@@ -13,7 +13,10 @@ one Postgres database. One person signs in; everyone else reads.
 ```
 server/           Express API, migrations, seed
   api.js          every /api endpoint
-  auth.js         password hashing and the session cookie
+  auth.js         the session cookie, and looking a user up
+  credentials.js  password hashing and normalization (pure, unit-tested)
+  admin.js        creating and resetting the one login
+  set-password.js reset it by hand, without a dashboard variable
   reviews.js      slug rules and validation (pure, unit-tested)
   migrations/     applied in order, once, on every release
 web/              the front end
@@ -57,6 +60,7 @@ You need Node 22 and a Postgres you can write to.
 npm install
 cp .env.example .env          # then edit DATABASE_URL and SESSION_SECRET
 npm run seed                  # applies migrations, creates the login, adds the Odyssey review
+                              # (the server does the login part at boot too)
 npm run dev                   # API on :3000, UI on :5173
 ```
 
@@ -76,6 +80,7 @@ npm run build && npm start    # http://localhost:3000
 | `npm run lint` | ESLint |
 | `npm run migrate` | apply pending migrations |
 | `npm run seed` | migrate, then create the user and the first review |
+| `npm run set-password <email>` | set or reset the login's password |
 | `npm run build` | build the front end into `web/dist` |
 
 There is also a browser walkthrough of the acceptance list below. It is not in
@@ -138,20 +143,57 @@ On the web service → **Variables**:
 
 `PORT` is injected by Railway. Do not set it.
 
-### 5. Deploy and seed
+### 5. Deploy
 
-The first deploy runs migrations automatically at boot. Then create her login —
-from the Railway service shell, or locally with the public `DATABASE_URL`:
+Every deploy applies migrations and then settles the login, both at boot. If
+`ADMIN_EMAIL` and `ADMIN_PASSWORD` are both set, the user is created — or their
+password replaced — before the service starts listening. There is no manual
+step to forget, and the deploy log says which happened:
 
-```bash
-npm run seed
 ```
+[login] Login created for teeta@example.com. Now delete ADMIN_PASSWORD from the environment.
+```
+
+Both values are trimmed first. A variable box keeps whatever was pasted into
+it, and a trailing newline hashed into a password makes that password
+impossible to type.
+
+`npm run seed` does the same thing plus the first review, if you would rather
+run it by hand.
 
 ### 6. Remove the password variable
 
 Delete `ADMIN_PASSWORD` from Railway variables and redeploy. It has done its
 job; the hash is in the database. Leaving it set means a plaintext password
 sits in the dashboard forever.
+
+Boot then reports the steady state, which is not a problem:
+
+```
+[login] ADMIN_EMAIL / ADMIN_PASSWORD not set — the login is already in the database.
+```
+
+### 6b. When the password will not work
+
+Check the deploy log for a `[login]` line first — it distinguishes the two
+cases that look identical from the sign-in screen.
+
+| Log line | What it means |
+| --- | --- |
+| `There is no login in the database…` | nobody has been created; set both variables and redeploy |
+| `Login created for …` / `Login updated for …` | the credential is in place; the password is genuinely wrong |
+| `ADMIN_EMAIL / ADMIN_PASSWORD not set — the login is already in the database.` | normal, post step 6 |
+
+To reset the password without putting it in a dashboard variable, run this in
+the Railway service shell. It prompts, and hides what is typed:
+
+```bash
+npm run set-password teeta@example.com
+```
+
+Ten wrong guesses in fifteen minutes returns `Too many attempts.` rather than
+`That is not it.` — that is the rate limiter, and it clears itself. Successful
+sign-ins do not count against it.
 
 ### 7. Custom domain
 

@@ -3,7 +3,7 @@
 // updates the password if the user exists and leaves the review alone.
 import { fileURLToPath } from 'node:url'
 import { pool, query } from './db.js'
-import { hashPassword } from './auth.js'
+import { ensureAdminUser } from './admin.js'
 import { migrate } from './migrate.js'
 
 const ODYSSEY = {
@@ -26,26 +26,13 @@ const ODYSSEY = {
   ].join('\n\n'),
 }
 
+// The server does this at boot too. Kept here so `npm run seed` remains one
+// command that leaves a usable site behind, and so a bad ADMIN_PASSWORD fails
+// loudly when it is run by hand.
 async function seedUser() {
-  const email = process.env.ADMIN_EMAIL
-  const password = process.env.ADMIN_PASSWORD
-
-  if (!email || !password) {
-    console.log('[seed] ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping the user.')
-    return
-  }
-  if (password.length < 8) {
-    throw new Error('ADMIN_PASSWORD must be at least 8 characters.')
-  }
-
-  const hash = await hashPassword(password)
-  await query(
-    `INSERT INTO users (email, password_hash) VALUES ($1, $2)
-     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
-    [email, hash]
-  )
-  console.log(`[seed] login ready for ${email}`)
-  console.log('[seed] now DELETE ADMIN_PASSWORD from the environment.')
+  const { status, message } = await ensureAdminUser({ strict: true })
+  console.log(`[seed] ${message}`)
+  if (status === 'error') process.exitCode = 1
 }
 
 async function seedReview() {
