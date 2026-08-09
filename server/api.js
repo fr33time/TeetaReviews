@@ -10,7 +10,7 @@ import {
   startSession,
   verifyPassword,
 } from './auth.js'
-import { slugify, validateReview } from './reviews.js'
+import { coverIdFromUrl, slugify, validateReview } from './reviews.js'
 
 export const api = express.Router()
 
@@ -182,8 +182,29 @@ api.patch('/reviews/:id', requireAuth, async (req, res, next) => {
 
 api.delete('/reviews/:id', requireAuth, async (req, res, next) => {
   try {
-    const { rowCount } = await query('DELETE FROM reviews WHERE id = $1', [req.params.id])
-    if (!rowCount) return res.status(404).json({ error: 'No review by that name.' })
+    const { rows } = await query('DELETE FROM reviews WHERE id = $1 RETURNING cover_url', [
+      req.params.id,
+    ])
+    if (!rows.length) return res.status(404).json({ error: 'No review by that name.' })
+
+    // A cover was uploaded for one review and nothing else links to it, so it
+    // leaves with the review. Without this the bytes sit in the database
+    // forever with nothing pointing at them, and they are the bulky part.
+    const coverUrl = rows[0].cover_url
+    const coverId = coverIdFromUrl(coverUrl)
+    if (coverId) {
+      try {
+        const { rows: stillUsed } = await query(
+          'SELECT 1 FROM reviews WHERE cover_url = $1 LIMIT 1',
+          [coverUrl]
+        )
+        if (!stillUsed.length) await query('DELETE FROM covers WHERE id = $1', [coverId])
+      } catch {
+        // The review is already gone, which is what was asked for. A cover left
+        // behind is untidy, not a failure worth reporting as one.
+      }
+    }
+
     res.json({ deleted: true })
   } catch (err) {
     next(err)

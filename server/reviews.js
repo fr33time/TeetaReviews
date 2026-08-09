@@ -24,6 +24,17 @@ export function slugify(title, displayDate = '') {
   return year ? `${stem}-${year}` : stem
 }
 
+/**
+ * The id of an uploaded cover, given the `cover_url` stored on a review, or
+ * null when the review points somewhere else (an outside URL, or nothing).
+ * Deleting a review has to take its uploaded image with it, and the review
+ * only ever remembers the image by its URL.
+ */
+export function coverIdFromUrl(url) {
+  const id = String(url || '').match(/^\/api\/covers\/([0-9a-f]{24})$/)?.[1]
+  return id || null
+}
+
 const MAX = { title: 200, creator: 200, verdict: 300, quote: 500, body: 40_000, display_date: 60 }
 
 /**

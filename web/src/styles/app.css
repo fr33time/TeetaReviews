@@ -398,25 +398,53 @@ textarea.input {
   background: rgba(182, 130, 53, 0.16);
   color: var(--color-accent-700);
 }
+/* The row and its delete control sit side by side, so the divider and the hover
+   belong to the pair rather than to the tappable title alone. */
+.shelf-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--color-divider);
+}
+.shelf-line:hover {
+  background: var(--color-neutral-100);
+}
 .shelf-row {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr) auto;
   gap: 22px;
   align-items: baseline;
   padding: 18px 8px;
-  border-bottom: 1px solid var(--color-divider);
   cursor: pointer;
-  width: 100%;
-  border-left: 0;
-  border-right: 0;
-  border-top: 0;
+  flex: 1;
+  min-width: 0;
+  border: 0;
   background: none;
   text-align: left;
   font: inherit;
   color: inherit;
 }
-.shelf-row:hover {
-  background: var(--color-neutral-100);
+.shelf-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 8px;
+  flex: none;
+}
+/* Kept out of the way until the row is hovered or the button is tabbed to —
+   the shelf is for reading first, and deleting is rare. */
+.shelf-delete {
+  color: #9a3412;
+  opacity: 0;
+}
+.shelf-line:hover .shelf-delete,
+.shelf-delete:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .shelf-delete {
+    opacity: 1;
+  }
 }
 .shelf-score {
   font-family: var(--font-hand);
